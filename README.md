@@ -1,9 +1,14 @@
 # How Long To Beat Bulk Search
-This application will create a local server with NodeJS + Express to call the Search API from [howlongtobeat.com](https://howlongtobeat.com).
+A lightweight local API server (NodeJS + Express) that performs bulk game time lookups using the modern HowLongToBeat search system.
+
+This project handles all the complexity of HLTB’s new /api/bleed authentication flow — including dynamic tokens, CSRF keys, and browser‑like headers — so you can simply send a list of game names and get structured results back.
 
 ## How To Use
 1. Clone this repo
-2. Install the latest version of [Node](https://nodejs.org/en)
+```shell
+git clone https://github.com/ivansanchezg/howlongtobeat-bulk-search.git
+```
+2. Install Node.js (v18 or newer)
 3. Install dependencies
 ```shell
 npm i
@@ -16,8 +21,21 @@ npx tsc
 ```
 node ./dist/app.js
 ```
-6. Perform an HTTP request, you can use Postman or curl. Send a POST request to the url `localhost:3000` with a body like the following:
+You should see:
+```shell
+HLTB API server running on port 3000
 ```
+
+6. Send a POST request
+Use Postman, culr or any HTTP client.
+
+**URL**
+```shell
+http://localhost:3000
+```
+
+**Body**
+```json
 {
     "games": [
         "Return of the Obra Dinn",
@@ -27,21 +45,21 @@ node ./dist/app.js
 }
 ```
 
-This example will return the following response:
-```
+**Example Response**
+```json
 {
     "data": [
         {
             "name": "Return of the Obra Dinn",
             "main": 8,
-            "plus": 10,
-            "hundred": 10
+            "plus": 9.5,
+            "hundred": 10.5
         },
         {
-            "name": "Resident Evil 4 (2005)",
-            "main": 16,
-            "plus": 19,
-            "hundred": 31
+            "name": "Resident Evil 4",
+            "main": 15.5,
+            "plus": 19.5,
+            "hundred": 32
         }
     ],
     "notFound": [
@@ -50,10 +68,46 @@ This example will return the following response:
 }
 ```
 
-## Notes
-This services calls the HowLongToBeat Search API every 250ms. If you are making use of it please be mindful of the number of calls you are performing to their API.
+## How It Works (Important Notes)
+### 1. Uses the modern /api/bleed endpoint
+HowLongToBeat no longer exposes a public search API.
+All search requests now go through:
+- /api/bleed/init → retrieves dynamic auth tokens
+- /api/bleed → performs the actual search
 
+This project automatically handles:
+- CSRF key/value injection
+- X‑Auth‑Token generation
+- Browser‑like User‑Agent rotation
+- Required headers
+- Payload formatting
 
-Note that if two games have the same name and use the year to tell apart, like `Resident Evil 4 (2005)` and `Resident Evil 4 (2023)`, then you must include the year in parenthesis at the end. If you just use `Resident Evil 4` the search will not know which result to return.
+No action is required from you — the server does all of this internally.
 
-While developing this I noticed that the search API URL might change, so look into the code where you need to update it in case the search is not working because of this.
+### 2. Fuzzy matching + year detection
+HLTB often returns multiple entries for the same title (e.g., remakes, VR versions, DLCs).
+
+This project uses:
+- Levenshtein similarity
+- Alias matching
+- Year extraction
+- Release year filtering
+
+So:
+- "Resident Evil 4 (2005)" → returns the 2005 original
+- "Resident Evil 4 (2023)" → returns the remake
+- "Resident Evil 4" → returns the closest match
+
+If two games share the same name, include the year in parentheses to guarantee the correct result.
+
+### 3. Rate limiting
+The server waits 250ms between requests to avoid hammering HowLongToBeat’s servers.
+
+If you plan to process large lists, consider batching your requests.
+
+## Getting your list of games in Steam
+You can find your list of games by goint to https://store.steampowered.com/account/licenses/
+
+## Disclaimer
+This project is not affiliated with HowLongToBeat.
+Use responsibly and avoid excessive automated requests.
